@@ -2,6 +2,100 @@ asyncapi: 3.0.0
 info:
   title: Atlas Domain Events
   version: 1.0.0
-channels: {}
-operations: {}
-
+channels:
+  employeeCreated:
+    address: employee.created
+    messages:
+      employeeCreated:
+        $ref: "#/components/messages/EmployeeCreated"
+  employeeUpdated:
+    address: employee.updated
+    messages:
+      employeeUpdated:
+        $ref: "#/components/messages/EmployeeUpdated"
+  employeeDeactivated:
+    address: employee.deactivated
+    messages:
+      employeeDeactivated:
+        $ref: "#/components/messages/EmployeeDeactivated"
+operations:
+  receiveEmployeeCreated:
+    action: receive
+    channel:
+      $ref: "#/channels/employeeCreated"
+  receiveEmployeeUpdated:
+    action: receive
+    channel:
+      $ref: "#/channels/employeeUpdated"
+  receiveEmployeeDeactivated:
+    action: receive
+    channel:
+      $ref: "#/channels/employeeDeactivated"
+components:
+  messages:
+    EmployeeCreated:
+      name: employee.created
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: employee.created
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/employee.created/1-1-0.json"
+    EmployeeUpdated:
+      name: employee.updated
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: employee.updated
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/employee.updated/1-1-0.json"
+    EmployeeDeactivated:
+      name: employee.deactivated
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: employee.deactivated
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/employee.deactivated/1-0-0.json"

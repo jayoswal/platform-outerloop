@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.local/schemas/employee.updated/1-1-0.json",
+  "title": "employee.updated 1-1-0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["employee_id", "changed"],
+  "properties": {
+    "employee_id": {"type": "string", "format": "uuid"},
+    "changed": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": true
+    }
+  }
+}
+

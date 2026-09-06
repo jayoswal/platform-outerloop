@@ -1,9 +1,445 @@
 openapi: 3.1.0
-info: {title: Atlas Identity API, version: 1.0.0}
+info:
+  title: Atlas Identity API
+  version: 1.0.0
+servers:
+  - url: /
 paths:
   /api/v1/identity/healthz:
     get:
       operationId: identityHealth
+      tags: [Health]
       responses:
-        "200": {description: Healthy}
-
+        "200":
+          description: Service is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/auth/login:
+    post:
+      operationId: login
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/identity/me:
+    get:
+      operationId: getCurrentUser
+      tags: [Employees]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current authenticated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /api/v1/identity/employees:
+    get:
+      operationId: listEmployees
+      tags: [Employees]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Employee page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createEmployee
+      tags: [Employees]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeCreate"
+      responses:
+        "201":
+          description: Employee created; downstream profiles are provisioning
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmployeeCreated"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/identity/employees/{employee_id}:
+    parameters:
+      - $ref: "#/components/parameters/EmployeeId"
+    get:
+      operationId: getEmployee
+      tags: [Employees]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateEmployee
+      tags: [Employees]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmployeeUpdate"
+      responses:
+        "200":
+          description: Updated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+  /api/v1/identity/employees/{employee_id}/deactivate:
+    parameters:
+      - $ref: "#/components/parameters/EmployeeId"
+    post:
+      operationId: deactivateEmployee
+      tags: [Employees]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Deactivated employee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Employee"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EmployeeId:
+      name: employee_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+  responses:
+    Unauthorized:
+      description: Missing, invalid, or expired credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Authenticated but not authorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Employee not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Unique employee email conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationError:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          const: ok
+        service:
+          type: string
+          const: svc-identity
+    Role:
+      type: string
+      enum: [EMPLOYEE, MANAGER, FINANCE, HR_ADMIN]
+    EmployeeStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        password:
+          type: string
+          minLength: 1
+          maxLength: 256
+    TokenResponse:
+      type: object
+      additionalProperties: false
+      required: [token, token_type]
+      properties:
+        token:
+          type: string
+        token_type:
+          type: string
+          const: Bearer
+    Employee:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - email
+        - full_name
+        - grade
+        - cost_center
+        - manager_id
+        - home_currency
+        - pto_entitlement_days
+        - status
+        - roles
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        full_name:
+          type: string
+        grade:
+          type: string
+        cost_center:
+          type: string
+        manager_id:
+          type: [string, "null"]
+          format: uuid
+        home_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        pto_entitlement_days:
+          type: integer
+          minimum: 0
+        status:
+          $ref: "#/components/schemas/EmployeeStatus"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+          uniqueItems: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    EmployeeCreated:
+      allOf:
+        - $ref: "#/components/schemas/Employee"
+        - type: object
+          required: [provisioning]
+          properties:
+            provisioning:
+              type: string
+              const: PROVISIONING
+    CurrentUser:
+      $ref: "#/components/schemas/Employee"
+    EmployeeCreate:
+      type: object
+      additionalProperties: false
+      required: [email, full_name, grade, cost_center, home_currency, roles]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        grade:
+          type: string
+          minLength: 2
+          maxLength: 10
+        cost_center:
+          type: string
+          minLength: 1
+          maxLength: 50
+        manager_id:
+          type: [string, "null"]
+          format: uuid
+        home_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          default: USD
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/Role"
+    EmployeeUpdate:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        full_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        grade:
+          type: string
+          minLength: 2
+          maxLength: 10
+        cost_center:
+          type: string
+          minLength: 1
+          maxLength: 50
+        manager_id:
+          type: [string, "null"]
+          format: uuid
+        home_currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        roles:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/Role"
+    EmployeeList:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Employee"
+        total:
+          type: integer
+          minimum: 0
+    ErrorDetail:
+      type: object
+      additionalProperties: false
+      required: [field, issue]
+      properties:
+        field:
+          type: string
+        issue:
+          type: string
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, correlation_id, details]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        correlation_id:
+          type: string
+          format: uuid
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/Error"

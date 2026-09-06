@@ -56,6 +56,16 @@ services:
       - traefik.enable=true
       - traefik.http.routers.identity.rule=PathPrefix(`/api/v1/auth`) || PathPrefix(`/api/v1/identity`)
       - traefik.http.services.identity.loadbalancer.server.port=8001
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8001/healthz')
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
 
   svc-time:
     build: ../../svc-time

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.local/schemas/employee.created/1-1-0.json",
+  "title": "employee.created 1-1-0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "employee_id",
+    "email",
+    "full_name",
+    "cost_center",
+    "manager_id",
+    "home_currency",
+    "pto_entitlement_days",
+    "status"
+  ],
+  "properties": {
+    "employee_id": {"type": "string", "format": "uuid"},
+    "email": {"type": "string", "format": "email"},
+    "full_name": {"type": "string"},
+    "cost_center": {"type": "string"},
+    "manager_id": {"type": ["string", "null"], "format": "uuid"},
+    "home_currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "pto_entitlement_days": {"type": "integer", "minimum": 0},
+    "status": {"enum": ["ACTIVE", "INACTIVE"]}
+  }
+}
+

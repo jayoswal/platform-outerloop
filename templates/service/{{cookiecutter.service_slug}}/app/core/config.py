@@ -8,9 +8,8 @@ class Settings(BaseSettings):
     port: int = {{cookiecutter.port}}
     database_url: str = "postgresql+psycopg://atlas:atlas@localhost:5432/{{cookiecutter.service_name}}_db"
     amqp_url: str = "amqp://atlas:atlas@localhost:5672/"
-    jwt_secret: str = "atlas-dev-secret"
+    jwt_secret: str = "atlas-local-development-secret-32"
     jwt_ttl_hours: int = 8
 
 
 settings = Settings()
-
