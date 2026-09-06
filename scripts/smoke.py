@@ -1,13 +1,15 @@
-"""Cross-service P2/P3 health, authentication, submission, decision, and
-notification smoke test."""
+"""Cross-service P2/P3/P4 health, authentication, submission, decision,
+notification, and employee-event fan-out smoke test."""
 
 import asyncio
 import datetime as dt
 import json
+import subprocess
+import time
 import uuid
 
 import httpx
-from compose_config import service_environment_value
+from compose_config import COMPOSE_DIR, service_environment_value
 
 HEALTH_PATHS = (
     "/api/v1/identity/healthz",
@@ -102,6 +104,75 @@ async def find_pending_approval(
                 return item
         await asyncio.sleep(0.25)
     raise RuntimeError(f"No pending approval appeared for subject {subject_id}.")
+
+
+async def wait_for_time_profile(
+    client: httpx.AsyncClient, headers: dict[str, str], employee_id: str
+) -> dict[str, object]:
+    for _ in range(40):
+        response = await client.get(
+            f"/api/v1/time/profiles/{employee_id}", headers=headers
+        )
+        if response.status_code == 200:
+            return response.json()
+        if response.status_code != 404:
+            response.raise_for_status()
+        await asyncio.sleep(0.25)
+    raise RuntimeError(f"Time profile for {employee_id} never provisioned.")
+
+
+async def wait_for_expense_profile(
+    client: httpx.AsyncClient, headers: dict[str, str], employee_id: str
+) -> dict[str, object]:
+    for _ in range(40):
+        response = await client.get(
+            f"/api/v1/expense/profiles/{employee_id}", headers=headers
+        )
+        if response.status_code == 200:
+            return response.json()
+        if response.status_code != 404:
+            response.raise_for_status()
+        await asyncio.sleep(0.25)
+    raise RuntimeError(f"Expense profile for {employee_id} never provisioned.")
+
+
+def wait_for_workflow_employee_read(employee_id: str, expected_status: str) -> dict[str, str]:
+    postgres_user = service_environment_value("postgres", "POSTGRES_USER")
+    for _ in range(40):
+        completed = subprocess.run(
+            [
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                "postgres",
+                "psql",
+                "-U",
+                postgres_user,
+                "-d",
+                "workflow_db",
+                "-t",
+                "-A",
+                "-F",
+                ",",
+                "-c",
+                (
+                    "SELECT email, full_name, status FROM employee_read "
+                    f"WHERE id = '{employee_id}'"
+                ),
+            ],
+            cwd=COMPOSE_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        row = completed.stdout.strip()
+        if row:
+            email, full_name, status = row.split(",")
+            if status == expected_status:
+                return {"email": email, "full_name": full_name, "status": status}
+        time.sleep(0.25)
+    raise RuntimeError(f"Workflow employee_read row for {employee_id} never synced.")
 
 
 async def main() -> None:
@@ -313,6 +384,82 @@ async def main() -> None:
                         "Timesheet/expense did not finalize after the approval decision."
                     )
                 print("PASS timesheet/expense finalized from decision events")
+
+                admin_login = await client.post(
+                    "/api/v1/auth/login",
+                    json={"email": "admin@atlas.dev", "password": password},
+                )
+                admin_login.raise_for_status()
+                admin_headers = {
+                    "Authorization": "Bearer " + admin_login.json()["token"]
+                }
+                print("PASS admin login (HR_ADMIN)")
+
+                new_hire_email = f"smoke-{run_id}@atlas.dev"
+                created_employee = await client.post(
+                    "/api/v1/identity/employees",
+                    headers=admin_headers,
+                    json={
+                        "email": new_hire_email,
+                        "full_name": "Smoke Testerson",
+                        "grade": "IC1",
+                        "cost_center": "CC-100",
+                        "manager_id": "10000000-0000-4000-8000-000000000001",
+                        "home_currency": "USD",
+                        "roles": ["EMPLOYEE"],
+                    },
+                )
+                created_employee.raise_for_status()
+                new_employee = created_employee.json()
+                new_employee_id = new_employee["id"]
+                if new_employee["provisioning"] != "PROVISIONING":
+                    raise RuntimeError("New employee response missing provisioning marker.")
+                print("PASS POST /api/v1/identity/employees")
+
+                time_profile = await wait_for_time_profile(
+                    client, admin_headers, new_employee_id
+                )
+                if time_profile["employee_id"] != new_employee_id:
+                    raise RuntimeError("Time profile id did not match the new employee.")
+                print("PASS employee.created fan-out to svc-time profile")
+
+                expense_profile = await wait_for_expense_profile(
+                    client, admin_headers, new_employee_id
+                )
+                if expense_profile["employee_id"] != new_employee_id:
+                    raise RuntimeError("Expense profile id did not match the new employee.")
+                print("PASS employee.created fan-out to svc-expense profile")
+
+                workflow_row = wait_for_workflow_employee_read(new_employee_id, "ACTIVE")
+                if workflow_row["email"] != new_hire_email:
+                    raise RuntimeError("Workflow employee_read email did not match.")
+                print("PASS employee.created fan-out to svc-workflow employee_read")
+
+                # Consumers upsert by primary key, so re-reading the same
+                # already-provisioned profile must return an unchanged row
+                # (the same guarantee that makes redelivery of employee.created
+                # a safe no-op).
+                replayed_time_profile = await wait_for_time_profile(
+                    client, admin_headers, new_employee_id
+                )
+                if replayed_time_profile != time_profile:
+                    raise RuntimeError(
+                        "Re-reading the time profile after redelivery-safe consumers "
+                        "changed unexpectedly."
+                    )
+                print("PASS employee-event consumers remain idempotent on re-read")
+
+                deactivated = await client.post(
+                    f"/api/v1/identity/employees/{new_employee_id}/deactivate",
+                    headers=admin_headers,
+                )
+                deactivated.raise_for_status()
+                if deactivated.json()["status"] != "INACTIVE":
+                    raise RuntimeError("Deactivate response did not report INACTIVE.")
+                deactivated_row = wait_for_workflow_employee_read(new_employee_id, "INACTIVE")
+                if deactivated_row["status"] != "INACTIVE":
+                    raise RuntimeError("Workflow employee_read status was not synced to INACTIVE.")
+                print("PASS employee.deactivated fan-out to svc-workflow employee_read")
 
             await wait_for_mailhog_message("grace@atlas.dev", "approval requested")
             print("PASS MailHog approval-request email")

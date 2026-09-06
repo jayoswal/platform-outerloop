@@ -120,6 +120,23 @@ paths:
         "403": {$ref: "#/components/responses/Error"}
         "404": {$ref: "#/components/responses/Error"}
         "422": {$ref: "#/components/responses/Error"}
+  /api/v1/expense/profiles/{employee_id}:
+    parameters:
+      - name: employee_id
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    get:
+      operationId: getExpenseProfile
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Provisioned expense profile
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Profile"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
 components:
   securitySchemes:
     bearerAuth:
@@ -247,6 +264,15 @@ components:
           type: array
           items: {$ref: "#/components/schemas/ExpenseReport"}
         total: {type: integer, minimum: 0}
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [employee_id, status, manager_id, home_currency]
+      properties:
+        employee_id: {type: string, format: uuid}
+        status: {type: string}
+        manager_id: {type: [string, "null"], format: uuid}
+        home_currency: {type: string, pattern: "^[A-Z]{3}$"}
     ErrorDetail:
       type: object
       additionalProperties: true
