@@ -28,6 +28,26 @@ channels:
     messages:
       expenseSubmitted:
         $ref: "#/components/messages/ExpenseSubmitted"
+  timesheetApproved:
+    address: timesheet.approved
+    messages:
+      timesheetApproved:
+        $ref: "#/components/messages/TimesheetApproved"
+  timesheetRejected:
+    address: timesheet.rejected
+    messages:
+      timesheetRejected:
+        $ref: "#/components/messages/TimesheetRejected"
+  expenseApproved:
+    address: expense.approved
+    messages:
+      expenseApproved:
+        $ref: "#/components/messages/ExpenseApproved"
+  expenseRejected:
+    address: expense.rejected
+    messages:
+      expenseRejected:
+        $ref: "#/components/messages/ExpenseRejected"
 operations:
   receiveEmployeeCreated:
     action: receive
@@ -49,6 +69,46 @@ operations:
     action: send
     channel:
       $ref: "#/channels/expenseSubmitted"
+  receiveTimesheetSubmitted:
+    action: receive
+    channel:
+      $ref: "#/channels/timesheetSubmitted"
+  receiveExpenseSubmitted:
+    action: receive
+    channel:
+      $ref: "#/channels/expenseSubmitted"
+  sendTimesheetApproved:
+    action: send
+    channel:
+      $ref: "#/channels/timesheetApproved"
+  sendTimesheetRejected:
+    action: send
+    channel:
+      $ref: "#/channels/timesheetRejected"
+  sendExpenseApproved:
+    action: send
+    channel:
+      $ref: "#/channels/expenseApproved"
+  sendExpenseRejected:
+    action: send
+    channel:
+      $ref: "#/channels/expenseRejected"
+  receiveTimesheetApproved:
+    action: receive
+    channel:
+      $ref: "#/channels/timesheetApproved"
+  receiveTimesheetRejected:
+    action: receive
+    channel:
+      $ref: "#/channels/timesheetRejected"
+  receiveExpenseApproved:
+    action: receive
+    channel:
+      $ref: "#/channels/expenseApproved"
+  receiveExpenseRejected:
+    action: receive
+    channel:
+      $ref: "#/channels/expenseRejected"
 components:
   messages:
     EmployeeCreated:
@@ -161,3 +221,91 @@ components:
             format: uuid
           data:
             $ref: "../schemas/expense.submitted/1-2-0.json"
+    TimesheetApproved:
+      name: timesheet.approved
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: timesheet.approved
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/timesheet.approved/1-0-0.json"
+    TimesheetRejected:
+      name: timesheet.rejected
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: timesheet.rejected
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/timesheet.rejected/1-0-0.json"
+    ExpenseApproved:
+      name: expense.approved
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: expense.approved
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/expense.approved/1-0-0.json"
+    ExpenseRejected:
+      name: expense.rejected
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: expense.rejected
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/expense.rejected/1-0-0.json"

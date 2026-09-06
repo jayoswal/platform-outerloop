@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.local/schemas/expense.rejected/1-0-0.json",
+  "title": "expense.rejected 1-0-0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "employee_id",
+    "approval_id",
+    "approver_id",
+    "decided_at",
+    "reason"
+  ],
+  "properties": {
+    "report_id": {"type": "string", "format": "uuid"},
+    "employee_id": {"type": "string", "format": "uuid"},
+    "approval_id": {"type": "string", "format": "uuid"},
+    "approver_id": {"type": "string", "format": "uuid"},
+    "decided_at": {"type": "string", "format": "date-time"},
+    "reason": {"type": ["string", "null"], "maxLength": 1000}
+  }
+}

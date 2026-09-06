@@ -134,6 +134,16 @@ services:
       - traefik.enable=true
       - traefik.http.routers.workflow.rule=PathPrefix(`/api/v1/workflow`) || PathPrefix(`/api/v1/approvals`)
       - traefik.http.services.workflow.loadbalancer.server.port=8004
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8004/healthz')
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
 
   hrms-web:
     build: ../../hrms-web

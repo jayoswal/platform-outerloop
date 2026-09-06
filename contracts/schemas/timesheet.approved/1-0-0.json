@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.local/schemas/timesheet.approved/1-0-0.json",
+  "title": "timesheet.approved 1-0-0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timesheet_id",
+    "employee_id",
+    "approval_id",
+    "approver_id",
+    "decided_at"
+  ],
+  "properties": {
+    "timesheet_id": {"type": "string", "format": "uuid"},
+    "employee_id": {"type": "string", "format": "uuid"},
+    "approval_id": {"type": "string", "format": "uuid"},
+    "approver_id": {"type": "string", "format": "uuid"},
+    "decided_at": {"type": "string", "format": "date-time"}
+  }
+}

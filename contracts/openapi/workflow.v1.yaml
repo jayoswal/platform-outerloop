@@ -1,9 +1,247 @@
 openapi: 3.1.0
-info: {title: Atlas Workflow API, version: 1.0.0}
+info:
+  title: Atlas Workflow API
+  version: 1.0.0
 paths:
   /api/v1/workflow/healthz:
     get:
       operationId: workflowHealth
       responses:
-        "200": {description: Healthy}
-
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/approvals:
+    get:
+      operationId: listApprovals
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/Status"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Approver's approval queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalList"
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+  /api/v1/approvals/{approval_id}:
+    parameters:
+      - $ref: "#/components/parameters/ApprovalId"
+    get:
+      operationId: getApproval
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Approval detail including policy flags
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+  /api/v1/approvals/{approval_id}/decision:
+    parameters:
+      - $ref: "#/components/parameters/ApprovalId"
+    post:
+      operationId: decideApproval
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionInput"
+      responses:
+        "200":
+          description: Decision recorded and domain decision event published
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Approval"
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/workflow/policies:
+    get:
+      operationId: listPolicies
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Configured policies
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyList"
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+    post:
+      operationId: createPolicy
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyCreate"
+      responses:
+        "201":
+          description: Policy created or activated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Policy"
+        "403": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    Status:
+      name: status
+      in: query
+      schema: {$ref: "#/components/schemas/ApprovalStatus"}
+    ApprovalId:
+      name: approval_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, service]
+      properties:
+        status: {const: ok}
+        service: {const: svc-workflow}
+    SubjectType:
+      type: string
+      enum: [TIMESHEET, EXPENSE]
+    ApprovalStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+    PolicyFlag:
+      type: object
+      additionalProperties: false
+      required: [type, message]
+      properties:
+        type: {type: string}
+        message: {type: string}
+    Approval:
+      type: object
+      additionalProperties: false
+      required:
+        [id, subject_type, subject_id, requester_id, approver_id, status,
+         reason, policy_flags, created_at, decided_at]
+      properties:
+        id: {type: string, format: uuid}
+        subject_type: {$ref: "#/components/schemas/SubjectType"}
+        subject_id: {type: string, format: uuid}
+        requester_id: {type: string, format: uuid}
+        approver_id: {type: [string, "null"], format: uuid}
+        status: {$ref: "#/components/schemas/ApprovalStatus"}
+        reason: {type: [string, "null"], maxLength: 1000}
+        policy_flags:
+          type: array
+          items: {$ref: "#/components/schemas/PolicyFlag"}
+        created_at: {type: string, format: date-time}
+        decided_at: {type: [string, "null"], format: date-time}
+    ApprovalList:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Approval"}
+        total: {type: integer, minimum: 0}
+    Decision:
+      type: string
+      enum: [APPROVE, REJECT]
+    ApprovalDecisionInput:
+      type: object
+      additionalProperties: false
+      required: [decision]
+      properties:
+        decision: {$ref: "#/components/schemas/Decision"}
+        comment: {type: [string, "null"], maxLength: 1000}
+    PolicyType:
+      type: string
+      enum: [OVERTIME_THRESHOLD, PER_RECEIPT_CAP]
+    Policy:
+      type: object
+      additionalProperties: false
+      required: [id, type, params, active]
+      properties:
+        id: {type: string, format: uuid}
+        type: {$ref: "#/components/schemas/PolicyType"}
+        params:
+          type: object
+          additionalProperties: true
+        active: {type: boolean}
+    PolicyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Policy"}
+    PolicyCreate:
+      type: object
+      additionalProperties: false
+      required: [type, params]
+      properties:
+        type: {$ref: "#/components/schemas/PolicyType"}
+        params:
+          type: object
+          additionalProperties: true
+        active: {type: boolean, default: true}
+    ErrorDetail:
+      type: object
+      additionalProperties: true
+      required: [field, issue]
+      properties:
+        field: {type: string}
+        issue: {type: string}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, correlation_id, details]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        correlation_id: {type: string}
+        details:
+          type: array
+          items: {$ref: "#/components/schemas/ErrorDetail"}
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: {$ref: "#/components/schemas/Error"}

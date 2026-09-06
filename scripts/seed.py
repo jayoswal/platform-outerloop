@@ -67,6 +67,7 @@ async def main() -> None:
     seed_service("svc-identity", "/api/v1/identity/healthz")
     seed_service("svc-time", "/api/v1/time/healthz")
     seed_service("svc-expense", "/api/v1/expense/healthz")
+    seed_service("svc-workflow", "/api/v1/workflow/healthz")
     await verify_login()
 
 

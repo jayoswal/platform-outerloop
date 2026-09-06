@@ -1,4 +1,5 @@
-"""Cross-service P2 health, authentication, submission, and event smoke test."""
+"""Cross-service P2/P3 health, authentication, submission, decision, and
+notification smoke test."""
 
 import asyncio
 import datetime as dt
@@ -16,8 +17,9 @@ HEALTH_PATHS = (
 )
 
 
+
 async def prepare_event_probe(client: httpx.AsyncClient, queue: str) -> None:
-    for exchange in ("time.events", "expense.events"):
+    for exchange in ("time.events", "expense.events", "workflow.events"):
         response = await client.put(
             f"/api/exchanges/%2F/{exchange}",
             json={"type": "topic", "durable": True, "auto_delete": False, "arguments": {}},
@@ -31,6 +33,10 @@ async def prepare_event_probe(client: httpx.AsyncClient, queue: str) -> None:
     for exchange, routing_key in (
         ("time.events", "timesheet.submitted"),
         ("expense.events", "expense.submitted"),
+        ("workflow.events", "timesheet.approved"),
+        ("workflow.events", "timesheet.rejected"),
+        ("workflow.events", "expense.approved"),
+        ("workflow.events", "expense.rejected"),
     ):
         response = await client.post(
             f"/api/bindings/%2F/e/{exchange}/q/{queue}",
@@ -39,7 +45,9 @@ async def prepare_event_probe(client: httpx.AsyncClient, queue: str) -> None:
         response.raise_for_status()
 
 
-async def received_event_types(client: httpx.AsyncClient, queue: str) -> set[str]:
+async def received_event_types(
+    client: httpx.AsyncClient, queue: str, expected: set[str]
+) -> set[str]:
     seen: set[str] = set()
     for _ in range(20):
         response = await client.post(
@@ -58,10 +66,42 @@ async def received_event_types(client: httpx.AsyncClient, queue: str) -> set[str
             for message in messages
             if isinstance(message.get("payload"), str)
         )
-        if {"timesheet.submitted", "expense.submitted"} <= seen:
+        if expected <= seen:
             return seen
         await asyncio.sleep(0.25)
     return seen
+
+
+async def wait_for_mailhog_message(to: str, subject_fragment: str) -> None:
+    async with httpx.AsyncClient(base_url="http://localhost:8025", timeout=10) as mail:
+        for _ in range(20):
+            response = await mail.get("/api/v2/messages", params={"limit": 50})
+            response.raise_for_status()
+            for item in response.json().get("items", []):
+                headers = item.get("Content", {}).get("Headers", {})
+                recipients = [addr.lower() for addr in headers.get("To", [])]
+                subject = "".join(headers.get("Subject", []))
+                if any(to.lower() in recipient for recipient in recipients) and (
+                    subject_fragment in subject
+                ):
+                    return
+            await asyncio.sleep(0.5)
+    raise RuntimeError(f"No MailHog message to {to} with subject containing {subject_fragment!r}.")
+
+
+async def find_pending_approval(
+    client: httpx.AsyncClient, headers: dict[str, str], subject_id: str
+) -> dict[str, object]:
+    for _ in range(20):
+        response = await client.get(
+            "/api/v1/approvals", headers=headers, params={"status": "PENDING"}
+        )
+        response.raise_for_status()
+        for item in response.json()["items"]:
+            if item["subject_id"] == subject_id:
+                return item
+        await asyncio.sleep(0.25)
+    raise RuntimeError(f"No pending approval appeared for subject {subject_id}.")
 
 
 async def main() -> None:
@@ -199,13 +239,83 @@ async def main() -> None:
                     raise RuntimeError("Expense total or status is incorrect.")
                 print("PASS expense create/line/submit")
 
-            event_types = await received_event_types(rabbit, queue)
-            expected = {"timesheet.submitted", "expense.submitted"}
-            if not expected <= event_types:
-                raise RuntimeError(
-                    f"Submitted events missing from RabbitMQ: {sorted(expected - event_types)}"
+                submitted_events = await received_event_types(
+                    rabbit, queue, {"timesheet.submitted", "expense.submitted"}
                 )
-            print("PASS RabbitMQ submitted events")
+                if not {"timesheet.submitted", "expense.submitted"} <= submitted_events:
+                    missing = {"timesheet.submitted", "expense.submitted"} - submitted_events
+                    raise RuntimeError(f"Submitted events missing from RabbitMQ: {sorted(missing)}")
+                print("PASS RabbitMQ submitted events")
+
+                grace_login = await client.post(
+                    "/api/v1/auth/login",
+                    json={"email": "grace@atlas.dev", "password": password},
+                )
+                grace_login.raise_for_status()
+                grace_headers = {
+                    "Authorization": "Bearer " + grace_login.json()["token"]
+                }
+                print("PASS grace login (manager)")
+
+                timesheet_approval = await find_pending_approval(
+                    client, grace_headers, timesheet_id
+                )
+                if timesheet_approval["policy_flags"][0]["type"] != "OVERTIME_THRESHOLD":
+                    raise RuntimeError("Timesheet approval was not flagged for overtime.")
+                decided_timesheet = await client.post(
+                    f"/api/v1/approvals/{timesheet_approval['id']}/decision",
+                    headers=grace_headers,
+                    json={"decision": "APPROVE"},
+                )
+                decided_timesheet.raise_for_status()
+                if decided_timesheet.json()["status"] != "APPROVED":
+                    raise RuntimeError("Timesheet approval decision did not persist.")
+                print("PASS timesheet approval decision (approve)")
+
+                report_approval = await find_pending_approval(client, grace_headers, report_id)
+                if report_approval["policy_flags"][0]["type"] != "PER_RECEIPT_CAP":
+                    raise RuntimeError("Expense approval was not flagged for the receipt cap.")
+                decided_report = await client.post(
+                    f"/api/v1/approvals/{report_approval['id']}/decision",
+                    headers=grace_headers,
+                    json={"decision": "REJECT", "comment": "Smoke test rejection"},
+                )
+                decided_report.raise_for_status()
+                if decided_report.json()["status"] != "REJECTED":
+                    raise RuntimeError("Expense approval decision did not persist.")
+                print("PASS expense approval decision (reject)")
+
+                decision_events = await received_event_types(
+                    rabbit, queue, {"timesheet.approved", "expense.rejected"}
+                )
+                if not {"timesheet.approved", "expense.rejected"} <= decision_events:
+                    missing = {"timesheet.approved", "expense.rejected"} - decision_events
+                    raise RuntimeError(f"Decision events missing from RabbitMQ: {sorted(missing)}")
+                print("PASS RabbitMQ decision events")
+
+                for _ in range(20):
+                    finalized_timesheet = await client.get(
+                        f"/api/v1/time/timesheets/{timesheet_id}", headers=headers
+                    )
+                    finalized_timesheet.raise_for_status()
+                    finalized_report = await client.get(
+                        f"/api/v1/expense/reports/{report_id}", headers=headers
+                    )
+                    finalized_report.raise_for_status()
+                    if (
+                        finalized_timesheet.json()["status"] == "APPROVED"
+                        and finalized_report.json()["status"] == "REJECTED"
+                    ):
+                        break
+                    await asyncio.sleep(0.25)
+                else:
+                    raise RuntimeError(
+                        "Timesheet/expense did not finalize after the approval decision."
+                    )
+                print("PASS timesheet/expense finalized from decision events")
+
+            await wait_for_mailhog_message("grace@atlas.dev", "approval requested")
+            print("PASS MailHog approval-request email")
         finally:
             response = await rabbit.delete(f"/api/queues/%2F/{queue}")
             if response.status_code not in (204, 404):
