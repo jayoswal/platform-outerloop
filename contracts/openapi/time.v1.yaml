@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: Atlas Time API, version: 1.0.0}
+paths:
+  /api/v1/time/healthz:
+    get:
+      operationId: timeHealth
+      responses:
+        "200": {description: Healthy}
+

@@ -1,0 +1,9 @@
+openapi: 3.1.0
+info: {title: Atlas Workflow API, version: 1.0.0}
+paths:
+  /api/v1/workflow/healthz:
+    get:
+      operationId: workflowHealth
+      responses:
+        "200": {description: Healthy}
+

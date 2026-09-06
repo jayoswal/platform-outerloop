@@ -1,0 +1,7 @@
+asyncapi: 3.0.0
+info:
+  title: Atlas Domain Events
+  version: 1.0.0
+channels: {}
+operations: {}
+

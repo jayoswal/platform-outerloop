@@ -1,0 +1,6 @@
+{
+  "service_slug": "svc-example",
+  "service_name": "example",
+  "port": "8000"
+}
+
