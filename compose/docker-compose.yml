@@ -73,6 +73,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/time_db
       AMQP_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672/
       JWT_SECRET: ${JWT_SECRET}
+      STANDARD_WEEK_HOURS: ${STANDARD_WEEK_HOURS}
       PORT: "8002"
     depends_on:
       postgres: {condition: service_healthy}
@@ -81,6 +82,16 @@ services:
       - traefik.enable=true
       - traefik.http.routers.time.rule=PathPrefix(`/api/v1/time`)
       - traefik.http.services.time.loadbalancer.server.port=8002
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8002/healthz')
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
 
   svc-expense:
     build: ../../svc-expense
@@ -96,6 +107,16 @@ services:
       - traefik.enable=true
       - traefik.http.routers.expense.rule=PathPrefix(`/api/v1/expense`)
       - traefik.http.services.expense.loadbalancer.server.port=8003
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8003/healthz')
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
 
   svc-workflow:
     build: ../../svc-workflow

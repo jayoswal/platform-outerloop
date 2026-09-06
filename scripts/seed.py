@@ -8,33 +8,33 @@ import httpx
 from compose_config import COMPOSE_DIR, service_environment_value
 
 
-def wait_for_identity() -> None:
+def wait_for_service(path: str, service: str) -> None:
     for _ in range(60):
         try:
             response = httpx.get(
-                "http://localhost:8080/api/v1/identity/healthz",
+                f"http://localhost:8080{path}",
                 timeout=2,
             )
             if response.status_code == 200 and response.json() == {
                 "status": "ok",
-                "service": "svc-identity",
+                "service": service,
             }:
                 return
         except (httpx.HTTPError, ValueError):
             pass
         time.sleep(1)
-    raise RuntimeError("Identity service did not become ready within 60 seconds.")
+    raise RuntimeError(f"{service} did not become ready within 60 seconds.")
 
 
-def seed_identity() -> None:
-    wait_for_identity()
+def seed_service(service: str, health_path: str) -> None:
+    wait_for_service(health_path, service)
     completed = subprocess.run(
         [
             "docker",
             "compose",
             "exec",
             "-T",
-            "svc-identity",
+            service,
             "uv",
             "run",
             "--no-sync",
@@ -64,7 +64,9 @@ async def verify_login() -> None:
 
 
 async def main() -> None:
-    seed_identity()
+    seed_service("svc-identity", "/api/v1/identity/healthz")
+    seed_service("svc-time", "/api/v1/time/healthz")
+    seed_service("svc-expense", "/api/v1/expense/healthz")
     await verify_login()
 
 

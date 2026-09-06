@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.local/schemas/timesheet.submitted/1-1-0.json",
+  "title": "timesheet.submitted 1-1-0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timesheet_id",
+    "employee_id",
+    "period_start",
+    "period_end",
+    "total_hours",
+    "overtime_hours"
+  ],
+  "properties": {
+    "timesheet_id": {"type": "string", "format": "uuid"},
+    "employee_id": {"type": "string", "format": "uuid"},
+    "period_start": {"type": "string", "format": "date"},
+    "period_end": {"type": "string", "format": "date"},
+    "total_hours": {"type": "number", "minimum": 0},
+    "overtime_hours": {"type": "number", "minimum": 0}
+  }
+}

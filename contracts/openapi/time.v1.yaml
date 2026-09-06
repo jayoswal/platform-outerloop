@@ -1,9 +1,251 @@
 openapi: 3.1.0
-info: {title: Atlas Time API, version: 1.0.0}
+info:
+  title: Atlas Time API
+  version: 1.0.0
 paths:
   /api/v1/time/healthz:
     get:
       operationId: timeHealth
       responses:
-        "200": {description: Healthy}
-
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /api/v1/time/timesheets:
+    get:
+      operationId: listTimesheets
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Employee timesheets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimesheetList"
+        "401": {$ref: "#/components/responses/Error"}
+    post:
+      operationId: createTimesheet
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimesheetCreate"
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Timesheet"
+        "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/time/timesheets/{timesheet_id}:
+    parameters:
+      - $ref: "#/components/parameters/TimesheetId"
+    get:
+      operationId: getTimesheet
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Timesheet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Timesheet"
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+    put:
+      operationId: updateTimesheet
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimesheetUpdate"
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Timesheet"
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/time/timesheets/{timesheet_id}/submit:
+    parameters:
+      - $ref: "#/components/parameters/TimesheetId"
+    post:
+      operationId: submitTimesheet
+      security: [{bearerAuth: []}]
+      responses:
+        "202":
+          description: Submitted for approval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Timesheet"
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/time/pto/balance:
+    get:
+      operationId: getPtoBalance
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Current employee PTO balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PtoBalance"
+        "401": {$ref: "#/components/responses/Error"}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    TimesheetId:
+      name: timesheet_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, service]
+      properties:
+        status: {const: ok}
+        service: {const: svc-time}
+    TimesheetStatus:
+      type: string
+      enum: [DRAFT, PENDING_APPROVAL, APPROVED, REJECTED]
+    TimeEntryInput:
+      type: object
+      additionalProperties: false
+      required: [work_date, hours, project_code]
+      properties:
+        work_date: {type: string, format: date}
+        hours: {type: number, exclusiveMinimum: 0, maximum: 24}
+        project_code: {type: string, minLength: 1, maxLength: 50}
+        note: {type: [string, "null"], maxLength: 500}
+    TimeEntry:
+      allOf:
+        - $ref: "#/components/schemas/TimeEntryInput"
+        - type: object
+          required: [id]
+          properties:
+            id: {type: string, format: uuid}
+    TimesheetCreate:
+      type: object
+      additionalProperties: false
+      required: [period_start, period_end]
+      properties:
+        period_start: {type: string, format: date}
+        period_end: {type: string, format: date}
+        entries:
+          type: array
+          maxItems: 7
+          description: At most one entry per work date.
+          items: {$ref: "#/components/schemas/TimeEntryInput"}
+          default: []
+    TimesheetUpdate:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          maxItems: 7
+          description: At most one entry per work date.
+          items: {$ref: "#/components/schemas/TimeEntryInput"}
+    Timesheet:
+      type: object
+      additionalProperties: false
+      required:
+        [id, employee_id, period_start, period_end, status, total_hours,
+         overtime_hours, entries, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        employee_id: {type: string, format: uuid}
+        period_start: {type: string, format: date}
+        period_end: {type: string, format: date}
+        status: {$ref: "#/components/schemas/TimesheetStatus"}
+        total_hours: {type: number, minimum: 0, maximum: 168}
+        overtime_hours: {type: number, minimum: 0, maximum: 168}
+        entries:
+          type: array
+          items: {$ref: "#/components/schemas/TimeEntry"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    TimesheetList:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/Timesheet"}
+        total: {type: integer, minimum: 0}
+    PtoBalance:
+      type: object
+      additionalProperties: false
+      required: [employee_id, entitlement_days, accrued_days, taken_days, pending_days, balance_days]
+      properties:
+        employee_id: {type: string, format: uuid}
+        entitlement_days: {type: number}
+        accrued_days: {type: number}
+        taken_days: {type: number}
+        pending_days: {type: number}
+        balance_days: {type: number}
+    ErrorDetail:
+      type: object
+      additionalProperties: true
+      required: [field, issue]
+      properties:
+        field: {type: string}
+        issue: {type: string}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, correlation_id, details]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        correlation_id: {type: string}
+        details:
+          type: array
+          items: {$ref: "#/components/schemas/ErrorDetail"}
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: {$ref: "#/components/schemas/Error"}

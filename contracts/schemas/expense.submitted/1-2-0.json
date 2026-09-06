@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://atlas.local/schemas/expense.submitted/1-2-0.json",
+  "title": "expense.submitted 1-2-0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "employee_id",
+    "home_currency",
+    "total_home_minor",
+    "lines"
+  ],
+  "properties": {
+    "report_id": {"type": "string", "format": "uuid"},
+    "employee_id": {"type": "string", "format": "uuid"},
+    "home_currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "total_home_minor": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9223372036854775807
+    },
+    "lines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "line_id",
+          "category_code",
+          "amount_minor",
+          "currency",
+          "amount_home_minor",
+          "spent_on"
+        ],
+        "properties": {
+          "line_id": {"type": "string", "format": "uuid"},
+          "category_code": {"type": "string"},
+          "amount_minor": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9223372036854775807
+          },
+          "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+          "amount_home_minor": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9223372036854775807
+          },
+          "spent_on": {"type": "string", "format": "date"}
+        }
+      }
+    }
+  }
+}

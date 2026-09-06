@@ -18,6 +18,16 @@ channels:
     messages:
       employeeDeactivated:
         $ref: "#/components/messages/EmployeeDeactivated"
+  timesheetSubmitted:
+    address: timesheet.submitted
+    messages:
+      timesheetSubmitted:
+        $ref: "#/components/messages/TimesheetSubmitted"
+  expenseSubmitted:
+    address: expense.submitted
+    messages:
+      expenseSubmitted:
+        $ref: "#/components/messages/ExpenseSubmitted"
 operations:
   receiveEmployeeCreated:
     action: receive
@@ -31,6 +41,14 @@ operations:
     action: receive
     channel:
       $ref: "#/channels/employeeDeactivated"
+  sendTimesheetSubmitted:
+    action: send
+    channel:
+      $ref: "#/channels/timesheetSubmitted"
+  sendExpenseSubmitted:
+    action: send
+    channel:
+      $ref: "#/channels/expenseSubmitted"
 components:
   messages:
     EmployeeCreated:
@@ -99,3 +117,47 @@ components:
             format: uuid
           data:
             $ref: "../schemas/employee.deactivated/1-0-0.json"
+    TimesheetSubmitted:
+      name: timesheet.submitted
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: timesheet.submitted
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/timesheet.submitted/1-1-0.json"
+    ExpenseSubmitted:
+      name: expense.submitted
+      payload:
+        type: object
+        additionalProperties: false
+        required: [id, type, source, time, correlation_id, data]
+        properties:
+          id:
+            type: string
+            format: uuid
+          type:
+            const: expense.submitted
+          source:
+            type: string
+          time:
+            type: string
+            format: date-time
+          correlation_id:
+            type: string
+            format: uuid
+          data:
+            $ref: "../schemas/expense.submitted/1-2-0.json"

@@ -32,7 +32,11 @@ async def publish(
             "data": data,
         }
         await target.publish(
-            aio_pika.Message(json.dumps(body).encode(), content_type="application/json"),
+            aio_pika.Message(
+                json.dumps(body).encode(),
+                content_type="application/json",
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            ),
             routing_key=event_type,
         )
 

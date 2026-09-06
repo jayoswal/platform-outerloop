@@ -1,9 +1,273 @@
 openapi: 3.1.0
-info: {title: Atlas Expense API, version: 1.0.0}
+info:
+  title: Atlas Expense API
+  version: 1.0.0
 paths:
   /api/v1/expense/healthz:
     get:
       operationId: expenseHealth
       responses:
-        "200": {description: Healthy}
-
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Health"}
+  /api/v1/expense/categories:
+    get:
+      operationId: listExpenseCategories
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Active expense categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: "#/components/schemas/Category"}
+        "401": {$ref: "#/components/responses/Error"}
+  /api/v1/expense/reports:
+    get:
+      operationId: listExpenseReports
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Accessible expense reports
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpenseReportList"}
+        "401": {$ref: "#/components/responses/Error"}
+    post:
+      operationId: createExpenseReport
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ExpenseReportCreate"}
+      responses:
+        "201":
+          description: Draft report created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpenseReport"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/expense/reports/{report_id}:
+    parameters:
+      - $ref: "#/components/parameters/ReportId"
+    get:
+      operationId: getExpenseReport
+      security: [{bearerAuth: []}]
+      responses:
+        "200":
+          description: Expense report
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpenseReport"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+    put:
+      operationId: updateExpenseReport
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ExpenseReportUpdate"}
+      responses:
+        "200":
+          description: Updated draft
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpenseReport"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/expense/reports/{report_id}/lines:
+    parameters:
+      - $ref: "#/components/parameters/ReportId"
+    post:
+      operationId: addExpenseLine
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ExpenseLineCreate"}
+      responses:
+        "201":
+          description: Line added
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpenseReport"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+  /api/v1/expense/reports/{report_id}/submit:
+    parameters:
+      - $ref: "#/components/parameters/ReportId"
+    post:
+      operationId: submitExpenseReport
+      security: [{bearerAuth: []}]
+      responses:
+        "202":
+          description: Submitted for approval
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ExpenseReport"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 50}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    ReportId:
+      name: report_id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ErrorEnvelope"}
+  schemas:
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status, service]
+      properties:
+        status: {const: ok}
+        service: {const: svc-expense}
+    ExpenseStatus:
+      type: string
+      enum: [DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, REIMBURSED]
+    Category:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, active]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        active: {type: boolean}
+    ExpenseLineCreate:
+      type: object
+      additionalProperties: false
+      required: [category_id, amount_minor, currency, spent_on]
+      properties:
+        category_id: {type: string, format: uuid}
+        amount_minor:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 9223372036854775807
+        currency: {type: string, pattern: "^[A-Z]{3}$"}
+        receipt_url: {type: [string, "null"], format: uri, maxLength: 2048}
+        spent_on: {type: string, format: date}
+    ExpenseLine:
+      type: object
+      additionalProperties: false
+      required:
+        [id, category_id, category_code, amount_minor, currency,
+         amount_home_minor, fx_rate, receipt_url, spent_on, policy_flags]
+      properties:
+        id: {type: string, format: uuid}
+        category_id: {type: string, format: uuid}
+        category_code: {type: string}
+        amount_minor:
+          type: integer
+          format: int64
+          maximum: 9223372036854775807
+        currency: {type: string}
+        amount_home_minor:
+          type: integer
+          format: int64
+          maximum: 9223372036854775807
+        fx_rate: {type: number}
+        receipt_url: {type: [string, "null"]}
+        spent_on: {type: string, format: date}
+        policy_flags:
+          type: array
+          items: {type: object, additionalProperties: true}
+    ExpenseReportCreate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 200}
+    ExpenseReportUpdate:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: {type: string, minLength: 1, maxLength: 200}
+    ExpenseReport:
+      type: object
+      additionalProperties: false
+      required:
+        [id, employee_id, title, status, home_currency, total_home_minor,
+         lines, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        employee_id: {type: string, format: uuid}
+        title: {type: string}
+        status: {$ref: "#/components/schemas/ExpenseStatus"}
+        home_currency: {type: string, pattern: "^[A-Z]{3}$"}
+        total_home_minor:
+          type: integer
+          format: int64
+          maximum: 9223372036854775807
+        lines:
+          type: array
+          items: {$ref: "#/components/schemas/ExpenseLine"}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    ExpenseReportList:
+      type: object
+      additionalProperties: false
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/ExpenseReport"}
+        total: {type: integer, minimum: 0}
+    ErrorDetail:
+      type: object
+      additionalProperties: true
+      required: [field, issue]
+      properties:
+        field: {type: string}
+        issue: {type: string}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, correlation_id, details]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        correlation_id: {type: string}
+        details:
+          type: array
+          items: {$ref: "#/components/schemas/ErrorDetail"}
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: {$ref: "#/components/schemas/Error"}
