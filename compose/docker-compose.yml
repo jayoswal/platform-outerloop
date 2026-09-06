@@ -2,7 +2,7 @@ name: atlas
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16.15@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -17,7 +17,7 @@ services:
       retries: 12
 
   rabbitmq:
-    image: rabbitmq:3.13-management
+    image: rabbitmq:3.13.7-management@sha256:e582c0bc7766f3342496d8485efb5a1df782b5ce3886ad017e2eaae442311f69
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -29,7 +29,7 @@ services:
       retries: 12
 
   gateway:
-    image: traefik:3
+    image: traefik:3.7.13@sha256:f86a2cab1b5c649070c49f883c743dd32d8485a56e3368c5f93b9e91f1e91259
     command:
       - --providers.docker=true
       - --providers.docker.exposedbydefault=false
@@ -113,13 +113,12 @@ services:
       - traefik.http.services.web.loadbalancer.server.port=80
 
   adminer:
-    image: adminer:4
+    image: adminer:4.17.1@sha256:c1c24d89d06fcb8fc0fb5a049240dc292ff4a121ae05d7e74d64b58c421d2921
     ports: ["8081:8080"]
 
   mailhog:
-    image: mailhog/mailhog
+    image: mailhog/mailhog:v1.0.1@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
     ports: ["1025:1025", "8025:8025"]
 
 volumes:
   pgdata: {}
-
